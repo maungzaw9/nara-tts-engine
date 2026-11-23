@@ -8,9 +8,14 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: build
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -30,13 +35,15 @@ jobs:
           gradle-version: "8.9"
 
       - name: Test frontend
-        working-directory: _src/nara-tts
+        timeout-minutes: 8
         continue-on-error: true
-        run: gradle --no-daemon :app:testDebugUnitTest -i
+        working-directory: _src/nara-tts
+        run: gradle --no-daemon --console=plain :app:testDebugUnitTest -i
 
       - name: Build APK
+        timeout-minutes: 25
         working-directory: _src/nara-tts
-        run: gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon --console=plain :app:assembleDebug
 
       - name: Collect APK
         run: |
