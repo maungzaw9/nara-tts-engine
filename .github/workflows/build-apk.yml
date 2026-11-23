@@ -1,0 +1,60 @@
+name: Build Nara TTS APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find project
+        id: proj
+        run: |
+          if [ -f nara-tts.zip ]; then
+            rm -rf _src && mkdir _src && unzip -q -o nara-tts.zip -d _src
+            echo "dir=_src/nara-tts" >> "$GITHUB_OUTPUT"
+          elif [ -f settings.gradle.kts ]; then
+            echo "dir=." >> "$GITHUB_OUTPUT"
+          else
+            echo "No nara-tts.zip or settings.gradle.kts in the repo root" && exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Frontend golden test
+        working-directory: ${{ steps.proj.outputs.dir }}
+        continue-on-error: true
+        run: gradle --no-daemon :app:testDebugUnitTest -i
+
+      - name: Build APK
+        working-directory: ${{ steps.proj.outputs.dir }}
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          cp "${{ steps.proj.outputs.dir }}"/app/build/outputs/apk/debug/*.apk out/NaraTTS.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NaraTTS-apk
+          path: out/NaraTTS.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Nara TTS build ${{ github.run_number }}
+          files: out/NaraTTS.apk
